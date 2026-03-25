@@ -35,13 +35,11 @@ jobs:
 
       - name: Build Next.js
         run: npm run build
-        env:
+        env: # ← ここ！ run より右にズレていたり、左にズレていたりしませんか？
           NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
           NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
-          # 画像で確認した名前に合わせて、プログラム側の変数(ANON_KEY)に代入します
           NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_DEFAULT_KEY }}
-          NEXT_PUBLIC_CACHE_BUSTER: ${{ github.sha }}
-
+    
       - name: Deploy to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
