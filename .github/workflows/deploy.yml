@@ -43,3 +43,4 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./out/
           server-dir: ./
+          timeout: 60000 # ← ★この1行を追加（タイムアウトを60秒に延長）
