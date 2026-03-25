@@ -1,6 +1,6 @@
 {
-  "name": "out",
-  "version": "0.1.0",
+  "name": "skoppa",
+  "version": "1.0.4",
   "private": true,
   "scripts": {
     "dev": "next dev",
