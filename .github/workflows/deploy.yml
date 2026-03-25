@@ -1,3 +1,22 @@
+Skip to content
+calamemo
+mituketa
+Repository navigation
+Code
+Issues
+Pull requests
+Actions
+Projects
+Wiki
+Security
+Insights
+Settings
+.github/workflows/deploy.yml
+Fix: Update map API and deployment path for SKOPPA #9
+All jobs
+Run details
+Workflow file for this run
+.github/workflows/deploy.yml at c508c81
 "use client";
 
 import { useEffect, useRef } from "react";
@@ -12,6 +31,14 @@ export default function UnexploredMap() {
       // 1. 新しいAPIの形式でオプションを設定
       (loader as any).setOptions({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
+ Check failure on line 14 in .github/workflows/deploy.yml
+
+
+GitHub Actions
+/ .github/workflows/deploy.yml
+Invalid workflow file
+
+You have an error in your yaml syntax on line 14
         version: "weekly",
       });
 
@@ -87,3 +114,15 @@ export default function UnexploredMap() {
     </div>
   );
 }
+Footer
+© 2026 GitHub, Inc.
+Footer navigation
+Terms
+Privacy
+Security
+Status
+Community
+Docs
+Contact
+Manage cookies
+Do not share my personal information
