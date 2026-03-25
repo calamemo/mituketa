@@ -1,37 +1,89 @@
-name: Deploy to Shin Rental Server
+"use client";
 
-on:
-  push:
-    branches:
-      - main
+import { useEffect, useRef } from "react";
+// Loader（クラス）ではなく loader（インスタンス）をインポート
+import { loader } from "@googlemaps/js-api-loader";
 
-jobs:
-  build-and-deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+export default function UnexploredMap() {
+  const mapRef = useRef<HTMLDivElement>(null);
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '24'
-          cache: 'npm'
+  useEffect(() => {
+    const initMap = async () => {
+      // 1. 新しいAPIの形式でオプションを設定
+      (loader as any).setOptions({
+        apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
+        version: "weekly",
+      });
 
-      - name: Install dependencies
-        run: npm install
+      try {
+        // 2. クラスを作らず、loaderから直接ライブラリをインポート
+        const { Map } = await (loader as any).importLibrary("maps");
+        const { Marker } = await (loader as any).importLibrary("marker");
 
-      - name: Build project
-        run: npm run build
-        env:
-          NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+        // デフォルトの位置：秋葉原（宝探しの拠点）
+        let position = { lat: 35.6984, lng: 139.7731 };
 
-      - name: FTP Deploy
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          local-dir: ./out/
-          server-dir: ./
-          state-name: .ftp-deploy-sync-state.json
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            (success) => {
+              position = {
+                lat: success.coords.latitude,
+                lng: success.coords.longitude,
+              };
+              renderMap(Map, Marker, position);
+            },
+            () => {
+              renderMap(Map, Marker, position);
+            }
+          );
+        } else {
+          renderMap(Map, Marker, position);
+        }
+      } catch (error) {
+        console.error("宝の地図の召喚に失敗しました:", error);
+      }
+    };
+
+    const renderMap = (MapClass: any, MarkerClass: any, pos: { lat: number, lng: number }) => {
+      if (!mapRef.current) return;
+
+      const mapOptions = {
+        center: pos,
+        zoom: 16,
+        mapId: "SKOPPA_TREASURE_MAP", // Map IDを設定すると高度なカスタマイズが可能
+        mapTypeControl: false,
+        streetViewControl: false,
+        fullscreenControl: false,
+        // 宝の地図らしいスタイル（任意）
+        styles: [{ featureType: "poi.business", stylers: [{ visibility: "off" }] }],
+      };
+
+      const map = new MapClass(mapRef.current, mapOptions);
+
+      // 拠点にマーカーを設置
+      new MarkerClass({
+        position: pos,
+        map: map,
+        title: "現在の拠点",
+      });
+    };
+
+    initMap();
+  }, []);
+
+  return (
+    <div className="w-full h-full relative font-sans">
+      <div ref={mapRef} className="w-full h-[calc(100vh-64px)]" />
+      
+      {/* 宝の地図オーバーレイ */}
+      <div className="absolute top-4 left-4 bg-white/95 p-3 rounded shadow-md border border-amber-200 pointer-events-none">
+        <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest leading-none mb-1">Base Camp</p>
+        <p className="text-lg font-bold text-slate-800">SKOPPA / 探索エリア</p>
+      </div>
+
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-8 py-3 rounded-full shadow-2xl border border-amber-500/50 backdrop-blur-sm">
+        <p className="text-sm font-bold tracking-[0.2em] text-amber-400">DIG FOR TREASURES</p>
+      </div>
+    </div>
+  );
+}
