@@ -2,12 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
-import { db, auth } from "@/lib/firebase"; // Firebase初期化ファイルが必要
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { supabase } from "@/lib/supabase"; // ここを Supabase に変更
 
 export default function UnexploredMap() {
   const mapRef = useRef<HTMLDivElement>(null);
-  const [map, setMap] = useState<any>(null);
   const [currentPos, setCurrentPos] = useState<{ lat: number; lng: number } | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -22,77 +20,69 @@ export default function UnexploredMap() {
         const { Map } = await (importLibrary as any)("maps");
         const { AdvancedMarkerElement } = await (importLibrary as any)("marker");
 
-        const defaultPos = { lat: 35.6984, lng: 139.7731 }; // 秋葉原
-
         if (!mapRef.current) return;
 
-        const gMap = new Map(mapRef.current, {
-          center: defaultPos,
+        const map = new Map(mapRef.current, {
+          center: { lat: 35.6984, lng: 139.7731 },
           zoom: 15,
           mapId: "SKOPPA_BASE_MAP_V1",
-          disableDefaultUI: false,
         });
-        setMap(gMap);
 
         if ("geolocation" in navigator) {
-          navigator.geolocation.getCurrentPosition((position) => {
-            const pos = {
-              lat: position.coords.latitude,
-              lng: position.coords.longitude,
-            };
-            setCurrentPos(pos);
-            gMap.setCenter(pos);
-
-            new AdvancedMarkerElement({
-              map: gMap,
-              position: pos,
-              title: "現在地",
-            });
+          navigator.geolocation.getCurrentPosition((pos) => {
+            const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+            setCurrentPos(coords);
+            map.setCenter(coords);
+            new AdvancedMarkerElement({ map, position: coords, title: "現在地" });
           });
         }
-      } catch (error) {
-        console.error("地図の初期化失敗:", error);
-      }
+      } catch (e) { console.error(e); }
     };
-
     initMap();
   }, []);
 
-  // Firestoreに場所を保存する関数
   const handleSaveLocation = async () => {
-    if (!currentPos || !auth.currentUser) {
-      alert(auth.currentUser ? "現在地を取得中です" : "ログインが必要です");
+    if (!currentPos) return;
+  
+    // 1. ログインユーザーの情報を取得
+    const { data: { user } } = await supabase.auth.getUser();
+  
+    if (!user) {
+      alert("ログインが必要です");
       return;
     }
-
+  
     setIsSaving(true);
-    try {
-      await addDoc(collection(db, "visited_places"), {
-        userId: auth.currentUser.uid,
-        location: currentPos,
-        timestamp: serverTimestamp(),
-        name: "探索済みの地点", // 後で入力可能にしてもOK
-      });
-      alert("この地点をマークしました！");
-    } catch (error) {
+  
+    // 2. 新しいテーブル定義に合わせて insert
+    const { error } = await supabase
+      .from('visited_places')
+      .insert([
+        { 
+          user_id: user.id,          // RLSポリシーを通すために必須
+          place_name: "探索地点",    // カラム名を place_name に修正
+          lat: currentPos.lat, 
+          lng: currentPos.lng 
+        }
+      ]);
+  
+    if (error) {
       console.error("保存失敗:", error);
-    } finally {
-      setIsSaving(false);
+      alert(`エラー: ${error.message}`);
+    } else {
+      alert("Supabaseに保存しました！");
     }
+    setIsSaving(false);
   };
 
   return (
-    <div className="relative w-full h-[600px] rounded-xl overflow-hidden shadow-lg border-2 border-amber-200 bg-slate-100">
+    <div className="relative w-full h-[600px] rounded-xl overflow-hidden shadow-lg border-2 border-amber-200">
       <div ref={mapRef} className="w-full h-full" />
-      
-      {/* 保存ボタンを地図上に浮かせる */}
       <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10">
         <button
           onClick={handleSaveLocation}
           disabled={isSaving || !currentPos}
-          className={`px-6 py-3 rounded-full font-bold text-white shadow-xl transition-all ${
-            isSaving ? "bg-gray-400" : "bg-amber-600 hover:bg-amber-700 active:scale-95"
-          }`}
+          className="bg-amber-600 text-white px-8 py-3 rounded-full font-bold shadow-xl hover:bg-amber-700 disabled:bg-gray-400"
         >
           {isSaving ? "保存中..." : "ここを探索済みにする"}
         </button>
