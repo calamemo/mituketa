@@ -2,17 +2,24 @@
 
 import { useEffect, useRef } from "react";
 import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
+// インポート文の確認（これが必要です！）
+import { Loader } from "@googlemaps/js-api-loader";
+
 
 export default function UnexploredMap() {
   const mapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const initMap = async () => {
-      // 1. apiKey (小文字の k) を使って設定を流し込む
-      (setOptions as any)({
-        apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
-        version: "weekly",
-      });
+      // 設計図（大文字のLoader）から、実体（小文字のloader）を作るイメージです
+    const loader = new Loader({
+      apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
+      version: "weekly",
+      libraries: ["maps", "marker"]
+    });
+
+      // デバッグ用：ターミナルではなくブラウザのコンソールにキーの冒頭だけ出す
+      console.log("Using API Key starting with:", process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY?.substring(0, 8));
 
       try {
         // 2. 最新のライブラリをロード
