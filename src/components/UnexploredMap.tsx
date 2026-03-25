@@ -54,7 +54,7 @@ export default function UnexploredMap() {
           center: { lat: 35.6984, lng: 139.7731 },
           zoom: 16,
           mapId: "SKOPPA_BASE_MAP_V1",
-          disableDefaultUI: true, // Google標準の邪魔なUIを消す
+          disableDefaultUI: true, // Google標準のUIを消す
           zoomControl: true,
         });
         setMap(gMap);
@@ -105,7 +105,7 @@ export default function UnexploredMap() {
       return;
     }
 
-    setSavedPlaces(data || []); // リスト表示用にデータを保存
+    setSavedPlaces(data || []);
 
     data?.forEach((place) => {
       if (place.status === 'never_again' && !showNeverAgain) return;
@@ -180,7 +180,6 @@ export default function UnexploredMap() {
     }
   };
 
-  // 現在地へ戻る関数
   const handleRecenter = () => {
     if (map && currentPos) {
       map.panTo(currentPos);
@@ -202,13 +201,12 @@ export default function UnexploredMap() {
     );
   }
 
-  // リストに表示するデータをフィルタリング
   const displayPlaces = savedPlaces.filter(p => showNeverAgain ? true : p.status !== 'never_again');
 
   return (
     <div className="relative w-full h-[100dvh] overflow-hidden bg-slate-100">
       
-      {/* 検索バー風のヘッダー（浮き出し） */}
+      {/* ヘッダー */}
       <div className="absolute top-4 left-4 right-4 z-10 flex gap-2 pointer-events-none">
         <div className="flex-1 pointer-events-auto bg-white rounded-full shadow-lg px-4 py-3 flex items-center justify-between">
           <span className="font-bold text-slate-700 truncate">ミツケタ</span>
@@ -232,7 +230,7 @@ export default function UnexploredMap() {
         </button>
       </div>
 
-      {/* 評価ボタン（リストの上に浮く） */}
+      {/* 評価ボタン */}
       <div className="absolute left-0 right-0 bottom-20 z-10 px-4 flex gap-2 transition-transform duration-300 pointer-events-none" style={{ transform: isListOpen ? 'translateY(-40dvh)' : 'translateY(0)' }}>
         <div className="w-full max-w-md mx-auto flex gap-2 pointer-events-auto">
           <button onClick={() => handleSaveLocation('good_value')} disabled={isSaving || !currentPos} className="flex-1 bg-blue-600 text-white py-3 px-1 rounded-2xl font-bold shadow-[0_4px_15px_rgba(37,99,235,0.4)] active:scale-95 text-sm flex flex-col items-center justify-center gap-1">
@@ -249,9 +247,37 @@ export default function UnexploredMap() {
 
       {/* ボトムシート（保存リスト） */}
       <div className={`absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-all duration-300 z-20 flex flex-col ${isListOpen ? 'h-[50dvh]' : 'h-16'}`}>
-        
-        {/* 引き出しハンドル部分 */}
         <div onClick={() => setIsListOpen(!isListOpen)} className="h-16 shrink-0 flex items-center justify-center cursor-pointer relative border-b border-slate-100">
           <div className="absolute top-2 w-10 h-1.5 bg-slate-300 rounded-full"></div>
           <span className="font-bold text-slate-700 flex items-center gap-2">
-            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10
+            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10h16M4 14h16M4 18h16"></path></svg>
+            パーソナルリスト ({displayPlaces.length})
+          </span>
+        </div>
+        <div className="flex-1 overflow-y-auto p-4 bg-slate-50">
+          {displayPlaces.length === 0 ? (
+            <p className="text-center text-slate-400 mt-8 font-medium">まだ記録がありません</p>
+          ) : (
+            <div className="flex flex-col gap-3 pb-8">
+              {displayPlaces.map((place) => (
+                <div key={place.id} className="bg-white p-4 rounded-2xl shadow-sm border border-slate-100 flex items-center gap-4">
+                  <div className={`w-12 h-12 rounded-full flex items-center justify-center text-2xl shrink-0 ${
+                    place.status === 'good_value' ? 'bg-blue-100 text-blue-600' : 
+                    place.status === 'reward' ? 'bg-amber-100 text-amber-500' : 
+                    'bg-slate-100 text-slate-600'
+                  }`}>
+                    {place.status === 'good_value' ? '👍' : place.status === 'reward' ? '✨' : '👎'}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-bold text-slate-800 truncate text-lg">{place.place_name}</h3>
+                    <p className="text-xs text-slate-400">{new Date(place.visited_at).toLocaleDateString('ja-JP')} に記録</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
