@@ -1,22 +1,32 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { Loader } from "@googlemaps/js-api-loader";
+// 全てをインポートすることで、ビルド時の「名前がない」エラーを回避します
+import * as GoogleMapsApi from "@googlemaps/js-api-loader";
 
 export default function UnexploredMap() {
   const mapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const initMap = async () => {
-      const loader = new Loader({
+      // エラーメッセージの指示通り、インスタンス（loader）を直接使います
+      const gLoader = (GoogleMapsApi as any).loader;
+
+      if (!gLoader) {
+        console.error("Google Maps Loaderが見つかりません。");
+        return;
+      }
+
+      // 指示通り setOptions を使用
+      gLoader.setOptions({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
         version: "weekly",
       });
 
       try {
-        // (loader as any) とすることで、TypeScriptの門番をスルーさせます
-        const { Map } = await (loader as any).importLibrary("maps");
-        const { Marker } = await (loader as any).importLibrary("marker");
+        // 指示通り importLibrary を使用
+        const { Map } = await gLoader.importLibrary("maps");
+        const { Marker } = await gLoader.importLibrary("marker");
 
         let position = { lat: 35.6984, lng: 139.7731 }; // 秋葉原
 
@@ -35,7 +45,7 @@ export default function UnexploredMap() {
           renderMap(Map, Marker, position);
         }
       } catch (error) {
-        console.error("SKOPPA Map Error:", error);
+        console.error("SKOPPA Map Load Error:", error);
       }
     };
 

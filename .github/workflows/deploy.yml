@@ -1,4 +1,4 @@
-name: Deploy to Shin Rental Server (High Speed)
+name: Deploy SKOPPA (High Speed)
 
 on:
   push:
@@ -19,25 +19,23 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      # Next.js のビルドキャッシュを保持して 2回目以降を高速化
-      - name: ⚡ Restore Next.js cache
+      - name: ⚡ Cache Next.js
         uses: actions/cache@v4
         with:
-          path: |
-            ${{ github.workspace }}/.next/cache
+          path: ${{ github.workspace }}/.next/cache
           key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.js', '**/*.jsx', '**/*.ts', '**/*.tsx') }}
           restore-keys: |
             ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
 
-      - name: 📦 Install dependencies
-        run: npm ci # npm install より高速で厳密です
+      - name: 📦 Install
+        run: npm ci
 
-      - name: 🏗️ Build project
+      - name: 🏗️ Build
         run: npm run build
         env:
           NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
 
-      - name: 📂 Sync files (Delta only)
+      - name: 📂 Deploy
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
           server: ${{ secrets.FTP_SERVER }}
@@ -45,5 +43,3 @@ jobs:
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: ./out/
           server-dir: ./
-          # 変更のないファイルはアップロードをスキップ
-          dry-run: false
