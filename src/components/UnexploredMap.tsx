@@ -13,30 +13,26 @@ export default function UnexploredMap() {
   const [user, setUser] = useState<any>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
-  // ノイズ（二度と行かない店）を表示するかどうかのトグル
+  // ノイズ（封印した店）を表示するかどうかのトグル
   const [showNeverAgain, setShowNeverAgain] = useState(false);
 
-  // 描画したピンを管理する配列（再描画時に古いピンを消すため）
   const markersRef = useRef<any[]>([]);
   const [MarkerClasses, setMarkerClasses] = useState<any>(null);
 
-  // ログイン状態の監視
+  // 1. ログイン状態の監視
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setIsAuthChecking(false);
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_, session) => {
       setUser(session?.user ?? null);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
-  // 地図とPlaces APIの初期化
+  // 2. 地図とPlaces APIの初期化
   useEffect(() => {
-    // ログインしていない場合は地図を読み込まない
     if (!user) return;
 
     const initMap = async () => {
@@ -48,7 +44,7 @@ export default function UnexploredMap() {
       try {
         const { Map } = await (importLibrary as any)("maps");
         const markerLib = await (importLibrary as any)("marker");
-        const placesLib = await (importLibrary as any)("places"); // 施設名取得用
+        const placesLib = await (importLibrary as any)("places");
         
         setMarkerClasses(markerLib);
 
@@ -61,7 +57,6 @@ export default function UnexploredMap() {
         });
         setMap(gMap);
 
-        // PlacesServiceの初期化
         const service = new placesLib.PlacesService(gMap);
         setPlacesService(service);
 
@@ -86,15 +81,13 @@ export default function UnexploredMap() {
         console.error("地図初期化エラー:", error);
       }
     };
-
     initMap();
   }, [user]);
 
-  // Supabaseからデータを取得してピンを立てる
+  // 3. ピンの描画（3つの評価で色分け）
   const loadSavedPlaces = useCallback(async () => {
     if (!map || !user || !MarkerClasses) return;
 
-    // 古いピンを地図から消去
     markersRef.current.forEach(marker => { marker.map = null; });
     markersRef.current = [];
 
@@ -111,14 +104,27 @@ export default function UnexploredMap() {
     }
 
     data?.forEach((place) => {
-      const isVisited = place.status === 'visited';
+      // 封印した店で、かつ非表示設定ならスキップ（ノイズキャンセル）
+      if (place.status === 'never_again' && !showNeverAgain) return;
       
-      // ノイズキャンセル：二度と行かない店で、かつ非表示設定ならスキップ
-      if (!isVisited && !showNeverAgain) return;
+      // 評価によってピンの色を変える
+      let bgColor = '#3b82f6'; // デフォルト青
+      let borderColor = '#1d4ed8';
+
+      if (place.status === 'good_value') {
+        bgColor = '#3b82f6'; // 青（マタクルネ）
+        borderColor = '#1d4ed8';
+      } else if (place.status === 'reward') {
+        bgColor = '#f59e0b'; // オレンジ（ご褒美）
+        borderColor = '#d97706';
+      } else if (place.status === 'never_again') {
+        bgColor = '#64748b'; // グレー（封印）
+        borderColor = '#334155';
+      }
       
       const pinStyle = new PinElement({
-        background: isVisited ? '#3b82f6' : '#64748b',
-        borderColor: isVisited ? '#1d4ed8' : '#334155',
+        background: bgColor,
+        borderColor: borderColor,
         glyphColor: 'white',
       });
 
@@ -131,17 +137,17 @@ export default function UnexploredMap() {
 
       markersRef.current.push(marker);
     });
-  }, [map, user, MarkerClasses, showNeverAgain]); // トグルが切り替わったら再実行
+  }, [map, user, MarkerClasses, showNeverAgain]);
 
   useEffect(() => {
     loadSavedPlaces();
   }, [loadSavedPlaces]);
 
-  const handleSaveLocation = async (recordType: 'visited' | 'never_again') => {
+  // 4. 保存処理（3種類のステータス対応）
+  const handleSaveLocation = async (recordType: 'good_value' | 'reward' | 'never_again') => {
     if (!currentPos || !user) return;
     setIsSaving(true);
 
-    // データベースに保存する共通関数
     const saveToDB = async (placeName: string) => {
       const { error } = await supabase.from('visited_places').insert([{ 
           user_id: user.id,
@@ -160,21 +166,19 @@ export default function UnexploredMap() {
       setIsSaving(false);
     };
 
-    // 周辺の施設名を検索
     if (placesService) {
       placesService.nearbySearch({
         location: currentPos,
-        radius: 30, // 30m以内の施設を探す
+        radius: 30,
       }, (results: any, status: any) => {
-        let name = recordType === 'visited' ? "行ったお店" : "二度と行かない店";
-        // 施設が見つかったらその名前を採用
+        let name = "記録した場所";
         if (status === 'OK' && results && results.length > 0) {
           name = results[0].name;
         }
         saveToDB(name);
       });
     } else {
-      saveToDB(recordType === 'visited' ? "行ったお店" : "二度と行かない店");
+      saveToDB("記録した場所");
     }
   };
 
@@ -185,10 +189,8 @@ export default function UnexploredMap() {
     await supabase.auth.signOut();
   };
 
-  // 認証チェック中は何も表示しない（チラつき防止）
   if (isAuthChecking) return <div className="h-[600px] bg-slate-100 rounded-xl" />;
 
-  // 未ログイン時の画面（ログインウォール）
   if (!user) {
     return (
       <div className="w-full h-[600px] rounded-xl shadow-lg border-2 border-slate-200 bg-white flex flex-col items-center justify-center p-6 text-center">
@@ -201,13 +203,9 @@ export default function UnexploredMap() {
     );
   }
 
-  // ログイン済みの画面
   return (
     <div className="relative w-full h-[600px] rounded-xl overflow-hidden shadow-lg border-2 border-slate-200 bg-slate-100 flex flex-col">
-      {/* 上部コントロールパネル */}
       <div className="absolute top-4 left-4 right-4 z-10 flex justify-between items-start pointer-events-none">
-        
-        {/* ノイズキャンセルトグル */}
         <div className="pointer-events-auto bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-md">
           <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-slate-700">
             <input 
@@ -219,8 +217,6 @@ export default function UnexploredMap() {
             ノイズ（👎）を表示
           </label>
         </div>
-
-        {/* ユーザー情報＆ログアウト */}
         <div className="pointer-events-auto bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-md flex items-center gap-3">
           <span className="text-sm font-bold text-slate-700 truncate max-w-[100px]">{user.email?.split('@')[0]}</span>
           <div className="w-px h-4 bg-slate-300"></div>
@@ -230,19 +226,22 @@ export default function UnexploredMap() {
 
       <div ref={mapRef} className="w-full h-full" />
       
-      {/* 下部の保存ボタンエリア */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex gap-3 w-full max-w-md px-4">
+      {/* 3つの評価ボタン */}
+      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex gap-2 w-full max-w-2xl px-4">
         {!currentPos ? (
           <div className="w-full bg-white text-center py-3 rounded-xl shadow-xl font-bold text-slate-500 animate-pulse">
             現在地を取得中...
           </div>
         ) : (
           <>
-            <button onClick={() => handleSaveLocation('visited')} disabled={isSaving} className="flex-1 bg-blue-500 text-white py-3 rounded-xl font-bold shadow-xl hover:bg-blue-600 transition-all">
-              👍 行った！
+            <button onClick={() => handleSaveLocation('good_value')} disabled={isSaving} className="flex-1 bg-blue-500 text-white py-2 px-1 rounded-xl font-bold shadow-xl hover:bg-blue-600 transition-all text-sm md:text-base">
+              👍<br className="md:hidden" />マタクルネ<br/><span className="text-[10px] font-normal opacity-80">コスパ最高</span>
             </button>
-            <button onClick={() => handleSaveLocation('never_again')} disabled={isSaving} className="flex-1 bg-slate-600 text-white py-3 rounded-xl font-bold shadow-xl hover:bg-slate-700 transition-all">
-              👎 封印する
+            <button onClick={() => handleSaveLocation('reward')} disabled={isSaving} className="flex-1 bg-amber-500 text-white py-2 px-1 rounded-xl font-bold shadow-xl hover:bg-amber-600 transition-all text-sm md:text-base">
+              ✨<br className="md:hidden" />ご褒美<br/><span className="text-[10px] font-normal opacity-80">高いけど美味い</span>
+            </button>
+            <button onClick={() => handleSaveLocation('never_again')} disabled={isSaving} className="flex-1 bg-slate-600 text-white py-2 px-1 rounded-xl font-bold shadow-xl hover:bg-slate-700 transition-all text-sm md:text-base">
+              👎<br className="md:hidden" />封印する<br/><span className="text-[10px] font-normal opacity-80">二度と行かない</span>
             </button>
           </>
         )}
