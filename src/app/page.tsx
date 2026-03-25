@@ -4,7 +4,7 @@ import UnexploredMap from "@/components/UnexploredMap";
 import packageJson from "../../package.json"; // ヴァージョン情報を取得
 
 export default function Home() {
-  const version = packageJson.version;
+  const version = packageJson.version; // 例: "1.0.4"
 
   return (
     <main className="flex min-h-screen flex-col bg-slate-50">
@@ -26,13 +26,12 @@ export default function Home() {
         </div>
       </nav>
 
-      {/* 地図エリア */}
       <div className="flex-1 relative">
         <UnexploredMap />
         
         {/* UIオーバーレイ */}
         <div className="absolute top-4 left-4 bg-white/95 p-3 rounded shadow-md border border-amber-200 pointer-events-none">
-          <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest leading-none mb-1">Status: Online</p>
+          <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest leading-none mb-1">Status: Active</p>
           <p className="text-lg font-bold text-slate-800">探索ミッション開始</p>
         </div>
       </div>
