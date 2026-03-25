@@ -1,24 +1,27 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-// Loader（クラス）ではなく loader（インスタンス）をインポート
-import { loader } from "@googlemaps/js-api-loader";
+// 大文字の Loader に修正
+import { Loader } from "@googlemaps/js-api-loader";
 
 export default function UnexploredMap() {
   const mapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const initMap = async () => {
-      // 1. 新しいAPIの形式でオプションを設定
-      (loader as any).setOptions({
+      // TypeScript のチェックを確実に回避するために any を使います
+      const loader: any = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
         version: "weekly",
       });
 
       try {
-        // 2. クラスを作らず、loaderから直接ライブラリをインポート
-        const { Map } = await (loader as any).importLibrary("maps");
-        const { Marker } = await (loader as any).importLibrary("marker");
+        // 最近のバージョンでも動作する load メソッドを使用
+        await loader.load();
+        
+        const google = (window as any).google;
+        const Map = google.maps.Map;
+        const Marker = google.maps.Marker;
 
         // デフォルトの位置：秋葉原（宝探しの拠点）
         let position = { lat: 35.6984, lng: 139.7731 };
@@ -50,17 +53,15 @@ export default function UnexploredMap() {
       const mapOptions = {
         center: pos,
         zoom: 16,
-        mapId: "SKOPPA_TREASURE_MAP", // Map IDを設定すると高度なカスタマイズが可能
+        mapId: "SKOPPA_TREASURE_MAP",
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
-        // 宝の地図らしいスタイル（任意）
         styles: [{ featureType: "poi.business", stylers: [{ visibility: "off" }] }],
       };
 
       const map = new MapClass(mapRef.current, mapOptions);
 
-      // 拠点にマーカーを設置
       new MarkerClass({
         position: pos,
         map: map,
@@ -74,13 +75,10 @@ export default function UnexploredMap() {
   return (
     <div className="w-full h-full relative font-sans">
       <div ref={mapRef} className="w-full h-[calc(100vh-64px)]" />
-      
-      {/* 宝の地図オーバーレイ */}
       <div className="absolute top-4 left-4 bg-white/95 p-3 rounded shadow-md border border-amber-200 pointer-events-none">
-        <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest leading-none mb-1">Base Camp</p>
+        <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest mb-1">Base Camp</p>
         <p className="text-lg font-bold text-slate-800">SKOPPA / 探索エリア</p>
       </div>
-
       <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-slate-900/90 text-white px-8 py-3 rounded-full shadow-2xl border border-amber-500/50 backdrop-blur-sm">
         <p className="text-sm font-bold tracking-[0.2em] text-amber-400">DIG FOR TREASURES</p>
       </div>
