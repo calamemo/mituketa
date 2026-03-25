@@ -17,30 +17,32 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'npm' # ★時短ポイント1: npmパッケージのダウンロードを省略
-
-      # ★時短ポイント2: Next.jsのビルド結果をキャッシュ（これが一番効きます）
-      - name: Cache Next.js build
-        uses: actions/cache@v4
-        with:
-          path: |
-            ~/.npm
-            ${{ github.workspace }}/.next/cache
-          key: ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-${{ hashFiles('**/*.[jt]s', '**/*.[jt]sx') }}
-          restore-keys: |
-            ${{ runner.os }}-nextjs-${{ hashFiles('**/package-lock.json') }}-
+          cache: 'npm'
 
       - name: Install Dependencies
         run: npm ci
 
-      - name: Create .env.production
+      # ★原因究明ポイント1：鍵が本当にロボットに渡っているか検査する
+      - name: Check Secrets
         run: |
-          echo "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}" >> .env.production
-          echo "NEXT_PUBLIC_SUPABASE_URL=${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" >> .env.production
-          echo "NEXT_PUBLIC_SUPABASE_ANON_KEY=${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}" >> .env.production
+          if [ -z "${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}" ]; then
+            echo "::error::🚨【原因判明】GitHub Secretsがロボットに渡っていません！「Repository secrets」に正しく登録されているか再確認してください。"
+            exit 1
+          else
+            echo "✅ 鍵は無事にロボットに渡っています！"
+          fi
+
+      # ★原因究明ポイント2：間違ってアップロードされた空の.envを強制削除
+      - name: Delete dirty env files
+        run: rm -f .env .env.local .env.production
 
       - name: Build Next.js
         run: npm run build
+        env:
+          NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
+          NEXT_PUBLIC_CACHE_BUSTER: ${{ github.sha }} # ★ブラウザのキャッシュを強制的にぶっ壊す呪文
 
       - name: Deploy to FTP
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
