@@ -1,7 +1,8 @@
+"use client"; // ← ★この1行を追加するだけ！
+
 import dynamic from 'next/dynamic'
 
 // 地図コンポーネントをブラウザ専用（SSRオフ）で読み込み
-// これによりビルド時の Supabase 接続エラーを回避します
 const UnexploredMap = dynamic(() => import('@/components/UnexploredMap'), { 
   ssr: false,
   loading: () => (
