@@ -13,13 +13,14 @@ export default function UnexploredMap() {
   const [user, setUser] = useState<any>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
 
-  // ノイズ（封印した店）を表示するかどうかのトグル
+  // リストと表示の管理
+  const [savedPlaces, setSavedPlaces] = useState<any[]>([]);
   const [showNeverAgain, setShowNeverAgain] = useState(false);
+  const [isListOpen, setIsListOpen] = useState(false); // ボトムシートの開閉状態
 
   const markersRef = useRef<any[]>([]);
   const [MarkerClasses, setMarkerClasses] = useState<any>(null);
 
-  // 1. ログイン状態の監視
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
@@ -31,7 +32,6 @@ export default function UnexploredMap() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // 2. 地図とPlaces APIの初期化
   useEffect(() => {
     if (!user) return;
 
@@ -54,6 +54,8 @@ export default function UnexploredMap() {
           center: { lat: 35.6984, lng: 139.7731 },
           zoom: 16,
           mapId: "SKOPPA_BASE_MAP_V1",
+          disableDefaultUI: true, // Google標準の邪魔なUIを消す
+          zoomControl: true,
         });
         setMap(gMap);
 
@@ -84,7 +86,6 @@ export default function UnexploredMap() {
     initMap();
   }, [user]);
 
-  // 3. ピンの描画（3つの評価で色分け）
   const loadSavedPlaces = useCallback(async () => {
     if (!map || !user || !MarkerClasses) return;
 
@@ -96,29 +97,30 @@ export default function UnexploredMap() {
     const { data, error } = await supabase
       .from('visited_places')
       .select('*')
-      .eq('user_id', user.id);
+      .eq('user_id', user.id)
+      .order('visited_at', { ascending: false }); // 新しい順
 
     if (error) {
       console.error("データ取得エラー:", error);
       return;
     }
 
+    setSavedPlaces(data || []); // リスト表示用にデータを保存
+
     data?.forEach((place) => {
-      // 封印した店で、かつ非表示設定ならスキップ（ノイズキャンセル）
       if (place.status === 'never_again' && !showNeverAgain) return;
       
-      // 評価によってピンの色を変える
-      let bgColor = '#3b82f6'; // デフォルト青
+      let bgColor = '#3b82f6'; 
       let borderColor = '#1d4ed8';
 
       if (place.status === 'good_value') {
-        bgColor = '#3b82f6'; // 青（マタクルネ）
+        bgColor = '#3b82f6';
         borderColor = '#1d4ed8';
       } else if (place.status === 'reward') {
-        bgColor = '#f59e0b'; // オレンジ（ご褒美）
+        bgColor = '#f59e0b';
         borderColor = '#d97706';
       } else if (place.status === 'never_again') {
-        bgColor = '#64748b'; // グレー（封印）
+        bgColor = '#64748b';
         borderColor = '#334155';
       }
       
@@ -143,7 +145,6 @@ export default function UnexploredMap() {
     loadSavedPlaces();
   }, [loadSavedPlaces]);
 
-  // 4. 保存処理（3種類のステータス対応）
   const handleSaveLocation = async (recordType: 'good_value' | 'reward' | 'never_again') => {
     if (!currentPos || !user) return;
     setIsSaving(true);
@@ -157,10 +158,7 @@ export default function UnexploredMap() {
           status: recordType
       }]);
 
-      if (error) {
-        alert(`エラー: ${error.message}`);
-      } else {
-        alert(placeName + " を記録しました！");
+      if (!error) {
         loadSavedPlaces();
       }
       setIsSaving(false);
@@ -182,70 +180,78 @@ export default function UnexploredMap() {
     }
   };
 
-  const handleLogin = async () => {
-    await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
-  };
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  // 現在地へ戻る関数
+  const handleRecenter = () => {
+    if (map && currentPos) {
+      map.panTo(currentPos);
+      map.setZoom(16);
+    }
   };
 
-  if (isAuthChecking) return <div className="h-[600px] bg-slate-100 rounded-xl" />;
+  if (isAuthChecking) return <div className="h-[100dvh] bg-slate-100" />;
 
   if (!user) {
     return (
-      <div className="w-full h-[600px] rounded-xl shadow-lg border-2 border-slate-200 bg-white flex flex-col items-center justify-center p-6 text-center">
-        <h2 className="text-2xl font-black text-slate-800 mb-2">ミツケタへようこそ</h2>
-        <p className="text-slate-500 mb-8">自分だけのパーソナルマップを作るには、Googleアカウントでログインしてください。</p>
-        <button onClick={handleLogin} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-full font-bold shadow-lg transition-all flex items-center gap-2">
+      <div className="w-full h-[100dvh] bg-white flex flex-col items-center justify-center p-6 text-center">
+        <h2 className="text-3xl font-black text-slate-800 mb-2">ミツケタ</h2>
+        <p className="text-slate-500 mb-8 font-medium">自分だけのパーソナルマップ</p>
+        <button onClick={() => supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } })} className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-full font-bold shadow-xl transition-all w-full max-w-sm">
           Googleでログインして始める
         </button>
       </div>
     );
   }
 
+  // リストに表示するデータをフィルタリング
+  const displayPlaces = savedPlaces.filter(p => showNeverAgain ? true : p.status !== 'never_again');
+
   return (
-    <div className="relative w-full h-[600px] rounded-xl overflow-hidden shadow-lg border-2 border-slate-200 bg-slate-100 flex flex-col">
-      <div className="absolute top-4 left-4 right-4 z-10 flex justify-between items-start pointer-events-none">
-        <div className="pointer-events-auto bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-md">
-          <label className="flex items-center gap-2 cursor-pointer text-sm font-bold text-slate-700">
-            <input 
-              type="checkbox" 
-              checked={showNeverAgain} 
-              onChange={(e) => setShowNeverAgain(e.target.checked)}
-              className="accent-slate-600 w-4 h-4"
-            />
-            ノイズ（👎）を表示
+    <div className="relative w-full h-[100dvh] overflow-hidden bg-slate-100">
+      
+      {/* 検索バー風のヘッダー（浮き出し） */}
+      <div className="absolute top-4 left-4 right-4 z-10 flex gap-2 pointer-events-none">
+        <div className="flex-1 pointer-events-auto bg-white rounded-full shadow-lg px-4 py-3 flex items-center justify-between">
+          <span className="font-bold text-slate-700 truncate">ミツケタ</span>
+          <label className="flex items-center gap-2 cursor-pointer text-xs font-bold text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
+            <input type="checkbox" checked={showNeverAgain} onChange={(e) => setShowNeverAgain(e.target.checked)} className="accent-slate-600 w-3 h-3"/>
+            ノイズ表示
           </label>
         </div>
-        <div className="pointer-events-auto bg-white/90 backdrop-blur px-4 py-2 rounded-full shadow-md flex items-center gap-3">
-          <span className="text-sm font-bold text-slate-700 truncate max-w-[100px]">{user.email?.split('@')[0]}</span>
-          <div className="w-px h-4 bg-slate-300"></div>
-          <button onClick={handleLogout} className="text-xs font-bold text-slate-400 hover:text-red-500 transition-colors">ログアウト</button>
+        <button onClick={() => supabase.auth.signOut()} className="pointer-events-auto bg-white rounded-full w-12 h-12 shadow-lg flex items-center justify-center text-xl overflow-hidden border-2 border-transparent hover:border-slate-200">
+          <img src={user.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/avataaars/svg?seed=Felix"} alt="User" className="w-full h-full object-cover"/>
+        </button>
+      </div>
+
+      {/* 地図本体 */}
+      <div ref={mapRef} className="absolute inset-0 w-full h-full" />
+      
+      {/* 現在地ボタン */}
+      <div className="absolute right-4 bottom-40 z-10 transition-transform duration-300" style={{ transform: isListOpen ? 'translateY(-40dvh)' : 'translateY(0)' }}>
+        <button onClick={handleRecenter} className="bg-white w-12 h-12 rounded-full shadow-lg flex items-center justify-center text-slate-600 hover:text-blue-600 hover:bg-slate-50">
+          <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path><circle cx="12" cy="12" r="3" fill="currentColor"></circle></svg>
+        </button>
+      </div>
+
+      {/* 評価ボタン（リストの上に浮く） */}
+      <div className="absolute left-0 right-0 bottom-20 z-10 px-4 flex gap-2 transition-transform duration-300 pointer-events-none" style={{ transform: isListOpen ? 'translateY(-40dvh)' : 'translateY(0)' }}>
+        <div className="w-full max-w-md mx-auto flex gap-2 pointer-events-auto">
+          <button onClick={() => handleSaveLocation('good_value')} disabled={isSaving || !currentPos} className="flex-1 bg-blue-600 text-white py-3 px-1 rounded-2xl font-bold shadow-[0_4px_15px_rgba(37,99,235,0.4)] active:scale-95 text-sm flex flex-col items-center justify-center gap-1">
+            <span className="text-xl">👍</span><span>マタクルネ</span>
+          </button>
+          <button onClick={() => handleSaveLocation('reward')} disabled={isSaving || !currentPos} className="flex-1 bg-amber-500 text-white py-3 px-1 rounded-2xl font-bold shadow-[0_4px_15px_rgba(245,158,11,0.4)] active:scale-95 text-sm flex flex-col items-center justify-center gap-1">
+            <span className="text-xl">✨</span><span>ご褒美</span>
+          </button>
+          <button onClick={() => handleSaveLocation('never_again')} disabled={isSaving || !currentPos} className="w-[72px] shrink-0 bg-slate-700 text-white py-3 rounded-2xl font-bold shadow-[0_4px_15px_rgba(51,65,85,0.4)] active:scale-95 text-sm flex flex-col items-center justify-center gap-1">
+            <span className="text-xl">👎</span><span className="text-[10px]">封印</span>
+          </button>
         </div>
       </div>
 
-      <div ref={mapRef} className="w-full h-full" />
-      
-      {/* 3つの評価ボタン */}
-      <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 flex gap-2 w-full max-w-2xl px-4">
-        {!currentPos ? (
-          <div className="w-full bg-white text-center py-3 rounded-xl shadow-xl font-bold text-slate-500 animate-pulse">
-            現在地を取得中...
-          </div>
-        ) : (
-          <>
-            <button onClick={() => handleSaveLocation('good_value')} disabled={isSaving} className="flex-1 bg-blue-500 text-white py-2 px-1 rounded-xl font-bold shadow-xl hover:bg-blue-600 transition-all text-sm md:text-base">
-              👍<br className="md:hidden" />マタクルネ<br/><span className="text-[10px] font-normal opacity-80">コスパ最高</span>
-            </button>
-            <button onClick={() => handleSaveLocation('reward')} disabled={isSaving} className="flex-1 bg-amber-500 text-white py-2 px-1 rounded-xl font-bold shadow-xl hover:bg-amber-600 transition-all text-sm md:text-base">
-              ✨<br className="md:hidden" />ご褒美<br/><span className="text-[10px] font-normal opacity-80">高いけど美味い</span>
-            </button>
-            <button onClick={() => handleSaveLocation('never_again')} disabled={isSaving} className="flex-1 bg-slate-600 text-white py-2 px-1 rounded-xl font-bold shadow-xl hover:bg-slate-700 transition-all text-sm md:text-base">
-              👎<br className="md:hidden" />封印する<br/><span className="text-[10px] font-normal opacity-80">二度と行かない</span>
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  );
-}
+      {/* ボトムシート（保存リスト） */}
+      <div className={`absolute bottom-0 left-0 right-0 bg-white rounded-t-3xl shadow-[0_-10px_40px_rgba(0,0,0,0.1)] transition-all duration-300 z-20 flex flex-col ${isListOpen ? 'h-[50dvh]' : 'h-16'}`}>
+        
+        {/* 引き出しハンドル部分 */}
+        <div onClick={() => setIsListOpen(!isListOpen)} className="h-16 shrink-0 flex items-center justify-center cursor-pointer relative border-b border-slate-100">
+          <div className="absolute top-2 w-10 h-1.5 bg-slate-300 rounded-full"></div>
+          <span className="font-bold text-slate-700 flex items-center gap-2">
+            <svg className="w-5 h-5 text-slate-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 10
