@@ -44,3 +44,10 @@ jobs:
           local-dir: ./out/
           server-dir: ./
           timeout: 60000 # ← ★この1行を追加（タイムアウトを60秒に延長）
+
+          - name: Build Next.js 🏗️
+        run: npm run build
+        env:
+          NEXT_PUBLIC_GOOGLE_MAPS_API_KEY: ${{ secrets.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY }}
+          NEXT_PUBLIC_SUPABASE_URL: ${{ secrets.NEXT_PUBLIC_SUPABASE_URL }}
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: ${{ secrets.NEXT_PUBLIC_SUPABASE_ANON_KEY }}
