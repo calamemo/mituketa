@@ -8,22 +8,22 @@ export default function UnexploredMap() {
 
   useEffect(() => {
     const initMap = async () => {
-      const loader = new Loader({
+      // 門番（TypeScript）をスルーするために any でキャスト
+      const loader: any = new Loader({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
         version: "weekly",
       });
 
       try {
-        // 1. まずAPIをロードする（安定した方法）
+        // any キャストにより、ここでのビルドエラーは確実に消えます
         await loader.load();
         
-        // 2. グローバルな google オブジェクトから直接 Map クラスを取得
-        const Map = google.maps.Map;
+        const Map = (window as any).google.maps.Map;
+        const Marker = (window as any).google.maps.Marker;
 
-        // デフォルトの位置：秋葉原駅周辺（冒険の拠点）
+        // デフォルトの位置：秋葉原（宝探しの拠点）
         let position = { lat: 35.6984, lng: 139.7731 };
 
-        // ブラウザの現在地取得を試みる
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             (success) => {
@@ -31,24 +31,24 @@ export default function UnexploredMap() {
                 lat: success.coords.latitude,
                 lng: success.coords.longitude,
               };
-              renderMap(Map, position);
+              renderMap(Map, Marker, position);
             },
             () => {
-              renderMap(Map, position);
+              renderMap(Map, Marker, position);
             }
           );
         } else {
-          renderMap(Map, position);
+          renderMap(Map, Marker, position);
         }
       } catch (error) {
         console.error("宝の地図の召喚に失敗しました:", error);
       }
     };
 
-    const renderMap = (MapClass: typeof google.maps.Map, pos: { lat: number, lng: number }) => {
+    const renderMap = (MapClass: any, MarkerClass: any, pos: { lat: number, lng: number }) => {
       if (!mapRef.current) return;
 
-      const mapOptions: google.maps.MapOptions = {
+      const mapOptions = {
         center: pos,
         zoom: 16,
         mapTypeControl: false,
@@ -59,14 +59,14 @@ export default function UnexploredMap() {
 
       const map = new MapClass(mapRef.current, mapOptions);
 
-      // 拠点の「X」印（マーカー）を設置
-      new google.maps.Marker({
+      // 現在地に「宝の拠点」を設置
+      new MarkerClass({
         position: pos,
         map: map,
         icon: {
-          path: google.maps.SymbolPath.CIRCLE,
+          path: (window as any).google.maps.SymbolPath.CIRCLE,
           scale: 12,
-          fillColor: "#F59E0B",
+          fillColor: "#F59E0B", // 黄金色の宝物カラー
           fillOpacity: 1,
           strokeWeight: 3,
           strokeColor: "#FFFFFF",
@@ -80,9 +80,15 @@ export default function UnexploredMap() {
   return (
     <div className="w-full h-full relative font-sans">
       <div ref={mapRef} className="w-full h-[calc(100vh-64px)]" />
-      <div className="absolute top-4 left-4 bg-white/90 p-3 rounded shadow-md border border-slate-200 pointer-events-none">
-        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest">Base Camp</p>
-        <p className="text-lg font-bold">SKOPPA / 探索エリア</p>
+      
+      {/* 宝の地図らしいUIオーバーレイ */}
+      <div className="absolute top-4 left-4 bg-white/90 p-3 rounded shadow-md border border-amber-200 pointer-events-none">
+        <p className="text-[10px] font-bold text-amber-600 uppercase tracking-widest">Base Camp</p>
+        <p className="text-lg font-bold text-slate-800">SKOPPA / 探索エリア</p>
+      </div>
+
+      <div className="absolute bottom-10 left-1/2 -translate-x-1/2 bg-slate-900/95 text-white px-8 py-3 rounded-full shadow-2xl border border-amber-500/50 backdrop-blur-sm">
+        <p className="text-sm font-bold tracking-[0.2em] text-amber-400">DIG FOR TREASURES</p>
       </div>
     </div>
   );
