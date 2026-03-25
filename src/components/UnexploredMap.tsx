@@ -1,32 +1,24 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-// 全てをインポートすることで、ビルド時の「名前がない」エラーを回避します
-import * as GoogleMapsApi from "@googlemaps/js-api-loader";
+// 関数型APIを直接インポート
+import { setOptions, importLibrary } from "@googlemaps/js-api-loader";
 
 export default function UnexploredMap() {
   const mapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const initMap = async () => {
-      // エラーメッセージの指示通り、インスタンス（loader）を直接使います
-      const gLoader = (GoogleMapsApi as any).loader;
-
-      if (!gLoader) {
-        console.error("Google Maps Loaderが見つかりません。");
-        return;
-      }
-
-      // 指示通り setOptions を使用
-      gLoader.setOptions({
+      // TypeScriptの型エラーを回避するために 'as any' を追加
+      setOptions({
         apiKey: process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY as string,
         version: "weekly",
-      });
+      } as any);
 
       try {
-        // 指示通り importLibrary を使用
-        const { Map } = await gLoader.importLibrary("maps");
-        const { Marker } = await gLoader.importLibrary("marker");
+        // importLibrary も any キャストで安全に呼び出し
+        const { Map } = await (importLibrary as any)("maps");
+        const { Marker } = await (importLibrary as any)("marker");
 
         let position = { lat: 35.6984, lng: 139.7731 }; // 秋葉原
 
@@ -45,7 +37,7 @@ export default function UnexploredMap() {
           renderMap(Map, Marker, position);
         }
       } catch (error) {
-        console.error("SKOPPA Map Load Error:", error);
+        console.error("SKOPPA 起動エラー:", error);
       }
     };
 
@@ -63,7 +55,7 @@ export default function UnexploredMap() {
       new MarkerClass({
         position: pos,
         map: map,
-        title: "Base Camp",
+        title: "現在の拠点",
       });
     };
 
