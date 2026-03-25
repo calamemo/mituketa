@@ -2,6 +2,22 @@
 
 import UnexploredMap from "@/components/UnexploredMap";
 import packageJson from "../../package.json"; // ヴァージョン情報を取得
+import dynamic from 'next/dynamic'
+
+// UnexploredMap を dynamic import し、ssr: false を指定します
+const UnexploredMap = dynamic(() => import('@/components/UnexploredMap'), { 
+  ssr: false,
+  loading: () => <div className="h-[600px] bg-slate-100 animate-pulse rounded-xl" />
+})
+
+export default function Home() {
+  return (
+    <main className="p-4">
+      <h1 className="text-2xl font-bold mb-4">SKOPPA 探索マップ</h1>
+      <UnexploredMap />
+    </main>
+  )
+}
 
 export default function Home() {
   const version = packageJson.version;
